@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Form Filler</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF and html2canvas for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom styles for a slightly better look and feel */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .form-container, .preview-container {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-speak {
+            transition: all 0.3s ease;
+        }
+        .btn-speak.listening {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">AI Voice Form Filler</h1>
+            <p class="text-gray-600 mt-2">A simplified prototype demonstrating voice-to-form functionality.</p>
+        </header>
+
+        <!-- Form Section -->
+        <main id="form-container" class="bg-white/70 shadow-2xl rounded-2xl p-8 form-container">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-6 text-center">Railway Refund Form</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" id="name" readonly class="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label for="dob" class="block text-sm font-medium text-gray-700">Date of Birth</label>
+                    <input type="text" id="dob" readonly class="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label for="address" class="block text-sm font-medium text-gray-700">Address</label>
+                    <input type="text" id="address" readonly class="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label for="aadhaar" class="block text-sm font-medium text-gray-700">Aadhaar Number</label>
+                    <input type="text" id="aadhaar" readonly class="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <button id="speak-btn" class="mt-8 w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center gap-2 btn-speak">
+                <i class="fas fa-microphone"></i>
+                <span>Tap and Speak (Simulated)</span>
+            </button>
+        </main>
+
+        <!-- Preview Section (Initially Hidden) -->
+        <section id="preview-section" class="hidden mt-8 bg-white/70 shadow-2xl rounded-2xl p-8 preview-container">
+             <div id="pdf-content">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-6 text-center">Bilingual Preview</h2>
+                <div class="space-y-4 p-4 rounded-lg border border-gray-200">
+                    <div>
+                        <h3 class="font-semibold text-lg text-gray-800">English Details</h3>
+                        <pre id="english-preview" class="whitespace-pre-wrap text-gray-600 mt-2"></pre>
+                    </div>
+                    <hr class="my-4">
+                    <div>
+                        <h3 class="font-semibold text-lg text-gray-800">हिंदी विवरण</h3>
+                        <pre id="hindi-preview" class="whitespace-pre-wrap text-gray-600 mt-2"></pre>
+                    </div>
+                </div>
+            </div>
+            <button id="download-btn" class="mt-6 w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 flex items-center justify-center gap-2">
+                <i class="fas fa-file-pdf"></i>
+                <span>Download as PDF</span>
+            </button>
+        </section>
+
+    </div>
+
+    <script>
+        // DOM element references
+        const speakButton = document.getElementById('speak-btn');
+        const previewSection = document.getElementById('preview-section');
+        const downloadButton = document.getElementById('download-btn');
+        
+        const nameInput = document.getElementById('name');
+        const dobInput = document.getElementById('dob');
+        const addressInput = document.getElementById('address');
+        const aadhaarInput = document.getElementById('aadhaar');
+
+        const englishPreview = document.getElementById('english-preview');
+        const hindiPreview = document.getElementById('hindi-preview');
+
+        // Event listener for the speak button
+        speakButton.addEventListener('click', handleVoiceInput);
+
+        function handleVoiceInput() {
+            // Simulate listening state
+            const buttonText = speakButton.querySelector('span');
+            speakButton.classList.add('listening', 'bg-red-600', 'hover:bg-red-700');
+            buttonText.textContent = 'Listening...';
+            speakButton.disabled = true;
+
+            // Simulate AI processing delay (2 seconds)
+            setTimeout(() => {
+                // Mock AI response data
+                const simulatedAIResponse = {
+                    name: "Atul Singh",
+                    dob: "05/07/2004",
+                    address: "Siwan, Bihar",
+                    aadhaar: "1234 5678 9101",
+                };
+
+                // Populate the form fields
+                nameInput.value = simulatedAIResponse.name;
+                dobInput.value = simulatedAIResponse.dob;
+                addressInput.value = simulatedAIResponse.address;
+                aadhaarInput.value = simulatedAIResponse.aadhaar;
+
+                // Create bilingual preview text
+                const englishText = `Name: ${simulatedAIResponse.name}\nDOB: ${simulatedAIResponse.dob}\nAddress: ${simulatedAIResponse.address}\nAadhaar: ${simulatedAIResponse.aadhaar}`;
+                const hindiText = `नाम: अतुल सिंह\nजन्म तिथि: 05/07/2004\nपता: सीवान, बिहार\nआधार: 1234 5678 9101`;
+
+                // Populate the preview sections
+                englishPreview.textContent = englishText;
+                hindiPreview.textContent = hindiText;
+
+                // Show the preview section
+                previewSection.classList.remove('hidden');
+
+                // Reset button state
+                speakButton.classList.remove('listening', 'bg-red-600', 'hover:bg-red-700');
+                buttonText.textContent = 'Speak Again';
+                speakButton.disabled = false;
+
+            }, 2000);
+        }
+
+        // Event listener for the download button
+        downloadButton.addEventListener('click', () => {
+            const { jsPDF } = window.jspdf;
+            const pdfContent = document.getElementById('pdf-content');
+
+            // Use html2canvas to render the div to a canvas
+            html2canvas(pdfContent, { scale: 2 }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Create a PDF document
+                // Using A4 size: 210mm width, 297mm height
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                
+                // Add the image to the PDF
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save("form-details.pdf");
+            });
+        });
+
+    </script>
+</body>
+</html>
